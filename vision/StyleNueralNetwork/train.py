@@ -13,54 +13,57 @@ from models import StyleTransfer
 from loss import ContentLoss, StyleLoss
 from tqdm import tqdm
 
+
 mean = [0.485, 0.456, 0.406]
 std = [0.229, 0.224, 0.225]
 
-
 def pre_processing(image:Image.Image) -> torch.Tensor:
-    # image resize (512, 512)
+    
+    # 이미지 resize (512,512)
     # Image -> Tensor
     # Normalize
     preprocessing = T.Compose([
-        T.Resize((512, 512)),
+        T.Resize((512,512)),
         T.ToTensor(),
-        T.Normalize(mean, std) # Lambda x : (x-mean) / std
-    ]) # (c, h, w)
-    
-    # (1, c, h, w)
+        T.Normalize(mean, std) # lambda x : (x-mean) / std
+    ]) # (c, h ,w)
+
+    # (1, c, h ,w)
     image_tensor:torch.Tensor = preprocessing(image)
-    
-    return image_tensor.unsqueeze(0) 
+
+    return image_tensor.unsqueeze(0)
 
 def post_processing(tensor:torch.Tensor) -> Image.Image:
-    # shape (1,c,h,w)
+
+    # shape 1,c,h,w
     image:np.ndarray = tensor.to('cpu').detach().numpy()
-    # shape c, h, w
+    # shape c,h,w
     image = image.squeeze()
-    # shape h, w, c
+    # shape h,w,c
     image = image.transpose(1, 2, 0)
     # de norm
     image = image*std + mean
-
     # clip
-    image = image.clip(0, 1)*255
+    image = image.clip(0,1)*255
     # dtype uint8
     image = image.astype(np.uint8)
     # numpy -> Image
     return Image.fromarray(image)
 
+
 def train_main():
-    # Load data
-    content_image = Image.open('./content.jpg')
+    # load data
+    content_image = Image.open('./H.jpg')
     content_image = pre_processing(content_image)
 
-    style_image = Image.open('./style.jpg')
+    # style_image = Image.open('./style.jpg')
+    style_image = Image.open('./style2.jpg')
     style_image = pre_processing(style_image)
-    
-    # Load model
+
+    # load model
     style_transfer = StyleTransfer().eval()
 
-    # Load Loss
+    # load loss
     content_loss = ContentLoss()
     style_loss = StyleLoss()
 
@@ -69,23 +72,26 @@ def train_main():
     beta = 1e6
     lr = 1
 
-    save_root = f'{alpha}_{beta}_{lr}_initContent_LBFGS'
+    save_root = f'{alpha}_{beta}_{lr}_H_style2_LBFGS'
     os.makedirs(save_root, exist_ok=True)
 
     # device setting
     device = 'cpu'
     if torch.backends.mps.is_available():
         device = 'mps'
+    elif torch.cuda.is_available():
+        device = 'cuda'
 
 
     style_transfer = style_transfer.to(device)
     content_image = content_image.to(device)
     style_image = style_image.to(device)
-
+    
     # noise
-    # x = torch.randn(1, 3, 512, 512).to(device)
+    # x = torch.randn(1,3,512,512).to(device)
     x = content_image.clone()
     x.requires_grad_(True)
+
 
     # setting optimizer
     optimizer = optim.LBFGS([x], lr=lr)
@@ -93,7 +99,7 @@ def train_main():
     # closure
     def closure():
         # gradient 계산
-        # reutrn Loss
+        # return loss 하나
         optimizer.zero_grad()
         x_content_list = style_transfer(x, 'content')
         y_content_list = style_transfer(content_image, 'content')
@@ -101,7 +107,7 @@ def train_main():
         x_style_list = style_transfer(x, 'style')
         y_style_list = style_transfer(style_image, 'style')
 
-        ## Loss_content, Loss_style
+        ## loss_content, loss_style
         loss_c = 0
         loss_s = 0
         loss_total = 0
@@ -116,21 +122,21 @@ def train_main():
 
         loss_total = loss_c + loss_s
         loss_total.backward()
-
         return loss_total
-    
-    # train Loop
+
+
+
+    # train loop
     steps = 1000
     for step in tqdm(range(steps)):
         ## content representation (x, content_image)
         ## style representation (x, style_image)
-        
 
         ## optimizer step
         optimizer.step(closure)
 
-        ## Loss print
-        if step%100 == 0:
+        ## loss print
+        if step%100==0:
             with torch.no_grad():
                 x_content_list = style_transfer(x, 'content')
                 y_content_list = style_transfer(content_image, 'content')
@@ -138,7 +144,7 @@ def train_main():
                 x_style_list = style_transfer(x, 'style')
                 y_style_list = style_transfer(style_image, 'style')
 
-                ## Loss_content, Loss_style
+                ## loss_content, loss_style
                 loss_c = 0
                 loss_s = 0
                 loss_total = 0
@@ -159,8 +165,8 @@ def train_main():
 
                 ## post processing
                 ## image gen output save
-                gen_image:Image.Image = post_processing(x)
-                gen_image.save(os.path.join(save_root, f'{step}.jpg'))
+                gen_img:Image.Image = post_processing(x)
+                gen_img.save(os.path.join(save_root, f'{step}.jpg'))
 
 if __name__=="__main__":
     train_main()
