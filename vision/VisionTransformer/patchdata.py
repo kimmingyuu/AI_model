@@ -1,5 +1,6 @@
 import torchvision
 import torchvision.transforms as transforms
+from torchvision.datasets import ImageFolder
 from torch.utils.data import DataLoader
 import matplotlib.pyplot as plt
 import numpy as np
@@ -41,7 +42,6 @@ class Flattened2Dpatches:
         std = (0.2023, 0.1994, 0.2010)
         train_transform = transforms.Compose([
             transforms.Resize(self.img_size),
-            transforms.CenterCrop(self.img_size),
             transforms.RandomCrop(self.img_size, padding=2),
             transforms.RandomHorizontalFlip(),
             transforms.ToTensor(),
@@ -50,7 +50,6 @@ class Flattened2Dpatches:
         ])
         test_transform = transforms.Compose([
             transforms.Resize(self.img_size),
-            transforms.CenterCrop(self.img_size),
             transforms.ToTensor(),
             transforms.Normalize(mean, std),
             PatchGenerator(self.patch_size)
@@ -63,6 +62,21 @@ class Flattened2Dpatches:
             odds = list(range(1, len(testset), 2))
             valset = torch.utils.data.Subset(testset, evens)
             testset = torch.utils.data.Subset(testset, odds)
+        
+        elif self.dataname == 'DOTA':
+            transform = transforms.Compose([
+                transforms.Resize((224, 224)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+                PatchGenerator(self.patch_size)
+            ])
+            train_dataset = ImageFolder("/home/mingyu/Dataset/DOTA-1.0/DOTA_ViT/train", transform=transform)
+            val_dataset = ImageFolder("/home/mingyu/Dataset/DOTA-1.0/DOTA_ViT/val", transform=transform)
+            evens = list(range(0, len(val_dataset), 2))
+            odds = list(range(1, len(val_dataset), 2))
+            trainset = train_dataset
+            valset = torch.utils.data.Subset(val_dataset, evens)
+            testset = torch.utils.data.Subset(val_dataset, odds)
           
         elif self.dataname == 'cifar100':
             trainset = torchvision.datasets.CIFAR100(root='/home/mingyu/Dataset/CIFAR-100', train=True, download=True, transform=train_transform)
@@ -79,6 +93,14 @@ class Flattened2Dpatches:
             odds = list(range(1, len(testset), 2))
             valset = torch.utils.data.Subset(testset, evens)
             testset = torch.utils.data.Subset(testset, odds)
+        elif self.dataname == 'tiny-imagenet':
+            train_dataset = torchvision.datasets.ImageFolder(root='/home/mingyu/Dataset/TinyImageNet/tiny-imagenet-200/train', transform=train_transform)
+            val_dataset   = torchvision.datasets.ImageFolder(root='/home/mingyu/Dataset/TinyImageNet/tiny-imagenet-200/val',   transform=test_transform)
+            evens = list(range(0, len(val_dataset), 2))
+            odds = list(range(1, len(val_dataset), 2))
+            trainset = train_dataset
+            valset = torch.utils.data.Subset(val_dataset, evens)
+            testset = torch.utils.data.Subset(val_dataset, odds)
 
         weights = self.make_weights(trainset.targets, len(trainset.classes))  # 가중치 계산
         weights = torch.DoubleTensor(weights)
